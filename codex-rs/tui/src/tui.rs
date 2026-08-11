@@ -19,10 +19,15 @@ use crossterm::SynchronizedUpdate;
 use crossterm::cursor::SetCursorStyle;
 use crossterm::event::DisableBracketedPaste;
 use crossterm::event::DisableFocusChange;
+use crossterm::event::DisableMouseCapture;
 use crossterm::event::EnableBracketedPaste;
 #[cfg(not(windows))]
 use crossterm::event::EnableFocusChange;
+use crossterm::event::EnableMouseCapture;
+use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
+use crossterm::event::MouseEvent;
+use crossterm::event::MouseEventKind;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::terminal::LeaveAlternateScreen;
 #[cfg(not(unix))]
@@ -305,6 +310,7 @@ fn restore_common(
     if let Err(err) = execute!(stdout(), DisableBracketedPaste) {
         first_error.get_or_insert(err);
     }
+    let _ = execute!(stdout(), DisableMouseCapture, DisableAlternateScroll);
     let _ = execute!(stdout(), DisableFocusChange);
     if matches!(raw_mode_restore, RawModeRestore::Disable)
         && let Err(err) = disable_raw_mode()
@@ -352,8 +358,10 @@ pub(super) fn reapply_raw_mode_after_resume() -> Result<()> {
 /// Uses a stronger keyboard reset than `restore` so the parent shell recovers even if a
 /// terminal missed the stack pop that normally pairs with [`set_modes`].
 pub fn restore_after_exit() -> Result<()> {
-    let mut first_error =
-        restore_common(RawModeRestore::Disable, KeyboardRestore::ResetAfterExit).err();
+    let mut first_error = execute!(stdout(), LeaveAlternateScreen).err();
+    if let Err(err) = restore_common(RawModeRestore::Disable, KeyboardRestore::ResetAfterExit) {
+        first_error.get_or_insert(err);
+    }
     if let Err(err) = terminal_stderr::finish() {
         first_error.get_or_insert(err);
     }
@@ -549,6 +557,8 @@ fn set_panic_hook() {
 pub enum TuiEvent {
     /// A terminal key event after focus, paste, and protocol bookkeeping has been handled.
     Key(KeyEvent),
+    /// A terminal mouse event. Mouse capture is enabled only for surfaces that consume it.
+    Mouse(MouseEvent),
     /// A bracketed paste payload normalized by the app layer before it reaches the composer.
     Paste(String),
     /// A terminal size notification and its reported dimensions.
@@ -563,6 +573,15 @@ pub enum TuiEvent {
     /// The app refreshes terminal geometry for this draw because resize events are not delivered
     /// while the process is suspended.
     Resume,
+}
+
+pub(crate) fn mouse_scroll_key(event: MouseEvent) -> Option<KeyEvent> {
+    let code = match event.kind {
+        MouseEventKind::ScrollUp => KeyCode::Up,
+        MouseEventKind::ScrollDown => KeyCode::Down,
+        _ => return None,
+    };
+    Some(KeyEvent::new(code, event.modifiers))
 }
 
 pub struct Tui {
@@ -588,6 +607,8 @@ pub struct Tui {
     is_zellij: bool,
     // When false, enter_alt_screen() becomes a no-op.
     alt_screen_enabled: bool,
+    // When true, alternate-screen wheel input is reported as mouse events instead of arrow keys.
+    mouse_capture_enabled: bool,
     // Keeps unmanaged process stderr writes out of the inline viewport.
     _stderr_guard: terminal_stderr::TerminalStderrGuard,
 }
@@ -642,6 +663,7 @@ impl Tui {
             notification_condition: NotificationCondition::default(),
             is_zellij,
             alt_screen_enabled: true,
+            mouse_capture_enabled: false,
             _stderr_guard: stderr_guard,
         }
     }
@@ -649,6 +671,24 @@ impl Tui {
     /// Set whether alternate screen is enabled. When false, enter_alt_screen() becomes a no-op.
     pub fn set_alt_screen_enabled(&mut self, enabled: bool) {
         self.alt_screen_enabled = enabled;
+    }
+
+    /// Select how wheel input is reported while the alternate screen is active.
+    pub fn set_mouse_capture_enabled(&mut self, enabled: bool) {
+        if self.mouse_capture_enabled == enabled {
+            return;
+        }
+        self.mouse_capture_enabled = enabled;
+        if !self.is_alt_screen_active() {
+            return;
+        }
+        if enabled {
+            let _ = execute!(self.terminal.backend_mut(), DisableAlternateScroll);
+            let _ = execute!(self.terminal.backend_mut(), EnableMouseCapture);
+        } else {
+            let _ = execute!(self.terminal.backend_mut(), DisableMouseCapture);
+            let _ = execute!(self.terminal.backend_mut(), EnableAlternateScroll);
+        }
     }
 
     pub fn set_notification_settings(
@@ -778,12 +818,17 @@ impl Tui {
     /// Enter alternate screen and expand the viewport to full terminal size, saving the current
     /// inline viewport for restoration when leaving.
     pub fn enter_alt_screen(&mut self) -> Result<()> {
-        if !self.alt_screen_enabled {
+        if !self.alt_screen_enabled || self.is_alt_screen_active() {
             return Ok(());
         }
         let _ = execute!(self.terminal.backend_mut(), EnterAlternateScreen);
-        // Enable "alternate scroll" so terminals may translate wheel to arrows
-        let _ = execute!(self.terminal.backend_mut(), EnableAlternateScroll);
+        if self.mouse_capture_enabled {
+            let _ = execute!(self.terminal.backend_mut(), DisableAlternateScroll);
+            let _ = execute!(self.terminal.backend_mut(), EnableMouseCapture);
+        } else {
+            // Enable "alternate scroll" so terminals may translate wheel to arrows.
+            let _ = execute!(self.terminal.backend_mut(), EnableAlternateScroll);
+        }
         if let Ok(size) = self.terminal.size() {
             self.alt_saved_viewport = Some(self.terminal.viewport_area);
             self.terminal.resize(size)?;
@@ -801,10 +846,10 @@ impl Tui {
 
     /// Leave alternate screen and restore the previously saved inline viewport, if any.
     pub fn leave_alt_screen(&mut self) -> Result<()> {
-        if !self.alt_screen_enabled {
+        if !self.is_alt_screen_active() {
             return Ok(());
         }
-        // Disable alternate scroll when leaving alt-screen
+        let _ = execute!(self.terminal.backend_mut(), DisableMouseCapture);
         let _ = execute!(self.terminal.backend_mut(), DisableAlternateScroll);
         let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen);
         if let Some(saved) = self.alt_saved_viewport.take() {
@@ -934,6 +979,8 @@ impl Tui {
         let mut prepared_resume = self
             .suspend_context
             .prepare_resume_action(&mut self.alt_saved_viewport);
+        #[cfg(unix)]
+        let mouse_capture_enabled = self.mouse_capture_enabled;
 
         // Precompute any viewport updates that need a cursor-position query before entering
         // the synchronized update, to avoid racing with the event reader.
@@ -944,7 +991,7 @@ impl Tui {
         stdout().sync_update(|_| {
             #[cfg(unix)]
             if let Some(prepared) = prepared_resume.take() {
-                prepared.apply(&mut self.terminal, screen_size)?;
+                prepared.apply(&mut self.terminal, screen_size, mouse_capture_enabled)?;
             }
 
             let terminal = &mut self.terminal;
@@ -1069,13 +1116,15 @@ impl Tui {
         let mut prepared_resume = self
             .suspend_context
             .prepare_resume_action(&mut self.alt_saved_viewport);
+        #[cfg(unix)]
+        let mouse_capture_enabled = self.mouse_capture_enabled;
 
         ensure_virtual_terminal_processing()?;
 
         stdout().sync_update(|_| {
             #[cfg(unix)]
             if let Some(prepared) = prepared_resume.take() {
-                prepared.apply(&mut self.terminal, screen_size)?;
+                prepared.apply(&mut self.terminal, screen_size, mouse_capture_enabled)?;
             }
 
             let terminal = &mut self.terminal;

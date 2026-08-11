@@ -48,6 +48,7 @@ use codex_config::types::ToolSuggestConfig;
 use codex_config::types::ToolSuggestDisabledTool;
 use codex_config::types::ToolSuggestDiscoverable;
 use codex_config::types::TuiKeymap;
+use codex_config::types::TuiLayout;
 use codex_config::types::TuiNotificationSettings;
 use codex_config::types::TuiPetAnchor;
 use codex_config::types::UriBasedFileOpener;
@@ -772,6 +773,9 @@ pub struct Config {
     /// - `always`: Always use alternate screen.
     /// - `never`: Never use alternate screen (inline mode, preserves scrollback).
     pub tui_alternate_screen: AltScreenMode,
+
+    /// Layout used by the interactive terminal UI.
+    pub tui_layout: TuiLayout,
     /// Ordered list of status line item identifiers for the TUI.
     ///
     /// When unset, the TUI defaults to: `model-with-reasoning` and `current-dir`.
@@ -4271,6 +4275,7 @@ impl Config {
                 .as_ref()
                 .map(|t| t.alternate_screen)
                 .unwrap_or_default(),
+            tui_layout: cfg.tui.as_ref().map(|t| t.layout).unwrap_or_default(),
             tui_status_line: cfg.tui.as_ref().and_then(|t| t.status_line.clone()),
             tui_status_line_use_colors: cfg
                 .tui

@@ -267,6 +267,7 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
                 }
                 Some(TuiEvent::Key(key_event))
             }
+            Event::Mouse(mouse_event) => Some(TuiEvent::Mouse(mouse_event)),
             Event::Resize(width, height) => {
                 Some(TuiEvent::Resize(ratatui::layout::Size { width, height }))
             }
@@ -281,7 +282,6 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
                 self.terminal_focused.store(false, Ordering::Relaxed);
                 None
             }
-            _ => None,
         }
     }
 }
@@ -323,6 +323,8 @@ mod tests {
     use crossterm::event::KeyCode;
     use crossterm::event::KeyEvent;
     use crossterm::event::KeyModifiers;
+    use crossterm::event::MouseEvent;
+    use crossterm::event::MouseEventKind;
     use pretty_assertions::assert_eq;
     use std::task::Context;
     use std::task::Poll;
@@ -522,6 +524,26 @@ mod tests {
                 height: 24
             }))
         ));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mouse_event_maps_to_mouse() {
+        let (broker, handle, _draw_tx, draw_rx, terminal_focused) = setup();
+        let mut stream = make_stream(broker, draw_rx, terminal_focused);
+        let expected_mouse = MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 42,
+            row: 7,
+            modifiers: KeyModifiers::NONE,
+        };
+
+        handle.send(Ok(Event::Mouse(expected_mouse)));
+
+        let next = stream.next().await;
+        match next {
+            Some(TuiEvent::Mouse(mouse)) => assert_eq!(mouse, expected_mouse),
+            other => panic!("expected mouse event, got {other:?}"),
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -159,7 +159,10 @@ impl App {
                 }
 
                 self.chat_widget.maybe_send_next_queued_input();
-                // Leaving alt-screen may blank the inline viewport; force a redraw either way.
+                // The picker owns a temporary alternate-screen guard. Restore the retained split
+                // surface after that guard exits; explicit alternate-screen opt-outs remain no-ops.
+                self.ensure_split_pane_screen(tui)?;
+                // Leaving or restoring alt-screen may blank the viewport; force a redraw either way.
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::OpenExternalAgentConfigMigration => {

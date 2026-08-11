@@ -180,6 +180,11 @@ async fn run_startup_hooks_review_app(
                     }
                 }
             }
+            TuiEvent::Mouse(mouse_event) => {
+                if let Some(key_event) = crate::tui::mouse_scroll_key(mouse_event) {
+                    view.handle_key_event(key_event);
+                }
+            }
             TuiEvent::Paste(_) => {}
             TuiEvent::Draw | TuiEvent::Resume | TuiEvent::Resize(_) => draw_view(tui, &view)?,
         }

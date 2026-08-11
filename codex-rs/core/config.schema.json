@@ -3459,6 +3459,15 @@
           },
           "description": "Keybinding overrides for the TUI.\n\nThis supports rebinding selected actions globally and by context. Context bindings take precedence over `global` bindings."
         },
+        "layout": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/TuiLayout"
+            }
+          ],
+          "default": "single",
+          "description": "Layout used by the interactive terminal UI. Defaults to `single`."
+        },
         "model_availability_nux": {
           "allOf": [
             {
@@ -4182,6 +4191,25 @@
         }
       },
       "type": "object"
+    },
+    "TuiLayout": {
+      "description": "Layout used by the interactive terminal UI.",
+      "oneOf": [
+        {
+          "description": "Render conversation and activity in the traditional shared transcript.",
+          "enum": [
+            "single"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Keep conversation on the left and tool activity on the right when space permits.",
+          "enum": [
+            "split"
+          ],
+          "type": "string"
+        }
+      ]
     },
     "TuiListKeymap": {
       "additionalProperties": false,

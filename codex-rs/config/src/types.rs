@@ -656,6 +656,17 @@ pub enum TuiPetAnchor {
     ScreenBottom,
 }
 
+/// Layout used by the interactive terminal UI.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum TuiLayout {
+    /// Render conversation and activity in the traditional shared transcript.
+    #[default]
+    Single,
+    /// Keep conversation on the left and tool activity on the right when space permits.
+    Split,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]
 pub struct TuiNotificationSettings {
@@ -720,6 +731,11 @@ pub struct Tui {
     /// - `never`: Never use alternate screen (inline mode only, preserves scrollback).
     #[serde(default)]
     pub alternate_screen: AltScreenMode,
+
+    /// Layout used by the interactive terminal UI.
+    /// Defaults to `single`.
+    #[serde(default)]
+    pub layout: TuiLayout,
 
     /// Ordered list of status line item identifiers.
     ///

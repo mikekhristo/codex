@@ -107,6 +107,10 @@ fn trim_trailing_blank_lines(mut lines: Vec<Line<'static>>) -> Vec<Line<'static>
 }
 
 impl HistoryCell for UserHistoryCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         let message = sanitize_user_text(&self.message);
         let text_elements = if message == self.message {
@@ -267,6 +271,10 @@ impl ReasoningSummaryCell {
 }
 
 impl HistoryCell for ReasoningSummaryCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         if self.transcript_only {
             Vec::new()
@@ -312,6 +320,10 @@ impl AgentMessageCell {
 }
 
 impl HistoryCell for AgentMessageCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         visible_lines(self.display_hyperlink_lines(width))
     }
@@ -423,6 +435,10 @@ fn normalize_whitespace_only_hyperlink_lines(mut lines: Vec<HyperlinkLine>) -> V
 }
 
 impl HistoryCell for AgentMarkdownCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         visible_lines(self.display_hyperlink_lines(width))
     }
@@ -499,6 +515,10 @@ impl StreamingAgentTailCell {
 }
 
 impl HistoryCell for StreamingAgentTailCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         visible_lines(self.display_hyperlink_lines(width))
     }

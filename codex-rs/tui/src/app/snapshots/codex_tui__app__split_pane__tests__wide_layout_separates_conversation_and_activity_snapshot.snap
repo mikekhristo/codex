@@ -1,0 +1,18 @@
+---
+source: tui/src/app/split_pane_tests.rs
+expression: "render_fixture(120, 14)"
+---
+ CHAT ───────────────────────────────────────────────│ ACTIVITY ────────────────────────────────────────────────────────
+> split the chat from the tool stream                │Ran cargo test
+                                                     │  42 tests passed
+* I will keep the conversation readable.             │
+                                                     │Edited tui/src/app.rs
+                                                     │  + split layout
+                                                     │
+                                                     │Running targeted checks...
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+> Type a message                                     │
+  100% context left                                  │

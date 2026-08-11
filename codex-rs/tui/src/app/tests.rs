@@ -4801,6 +4801,7 @@ async fn make_test_app() -> App {
         runtime_permission_profile_override: None,
         file_search,
         transcript_cells: Vec::new(),
+        split_pane_scroll: split_pane::SplitPaneScrollState::default(),
         overlay: None,
         deferred_history_lines: Vec::new(),
         has_emitted_history_lines: false,
@@ -4871,6 +4872,7 @@ async fn make_test_app_with_channels() -> (
             runtime_permission_profile_override: None,
             file_search,
             transcript_cells: Vec::new(),
+            split_pane_scroll: split_pane::SplitPaneScrollState::default(),
             overlay: None,
             deferred_history_lines: Vec::new(),
             has_emitted_history_lines: false,
@@ -5388,6 +5390,22 @@ async fn directive_only_completion_removes_streamed_directive() -> Result<()> {
             .collect::<Vec<_>>()
             .join("\n")
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn split_layout_keeps_alt_screen_after_transcript_overlay_closes() -> Result<()> {
+    let (mut app, _rx, _op_rx) = make_test_app_with_channels().await;
+    app.config.tui_layout = codex_config::types::TuiLayout::Split;
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+
+    app.ensure_split_pane_screen(&mut tui)?;
+    assert!(tui.is_alt_screen_active());
+
+    app.open_transcript_overlay(&mut tui);
+    app.close_transcript_overlay(&mut tui);
+
+    assert!(tui.is_alt_screen_active());
     Ok(())
 }
 

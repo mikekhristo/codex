@@ -509,6 +509,11 @@ pub(crate) async fn run_onboarding_app(
                                 .await;
                             }
                         }
+                        TuiEvent::Mouse(mouse_event) => {
+                            if let Some(key_event) = crate::tui::mouse_scroll_key(mouse_event) {
+                                onboarding_screen.handle_key_event(key_event);
+                            }
+                        }
                         TuiEvent::Paste(text) => {
                             onboarding_screen.handle_paste(text);
                         }

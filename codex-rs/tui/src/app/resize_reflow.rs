@@ -106,6 +106,11 @@ impl App {
         cell: &dyn HistoryCell,
         width: u16,
     ) {
+        if self.split_pane_active(tui) {
+            tui.clear_pending_history_lines();
+            tui.frame_requester().schedule_frame();
+            return;
+        }
         let display = self.display_lines_for_history_insert(cell, width);
         if display.is_empty() {
             return;
@@ -153,6 +158,12 @@ impl App {
     /// This mirrors terminal scrollback behavior and avoids making startup replay cheaper or more
     /// expensive than a later resize rebuild of the same transcript.
     pub(super) fn finish_initial_history_replay_buffer(&mut self, tui: &mut tui::Tui) {
+        if self.split_pane_active(tui) {
+            self.initial_history_replay_buffer = None;
+            tui.clear_pending_history_lines();
+            tui.frame_requester().schedule_frame();
+            return;
+        }
         let Some(buffer) = self.initial_history_replay_buffer.take() else {
             return;
         };
@@ -388,6 +399,18 @@ impl App {
         tui: &mut tui::Tui,
         size: ratatui::layout::Size,
     ) -> Result<()> {
+        if self.split_pane_active(tui) {
+            tui.clear_pending_history_lines();
+            self.transcript_reflow.clear();
+            let conversation_width = self.split_conversation_width(size.width);
+            if self.chat_widget.last_rendered_width() != Some(conversation_width) {
+                self.chat_widget.on_terminal_resize(conversation_width);
+            }
+            if size != tui.terminal.last_known_screen_size {
+                self.refresh_status_line();
+            }
+            return Ok(());
+        }
         let should_rebuild_transcript = self.handle_draw_size_change(
             size,
             tui.terminal.last_known_screen_size,
@@ -519,6 +542,11 @@ impl App {
         tui: &mut tui::Tui,
         terminal_width: TerminalWidth,
     ) -> Result<()> {
+        if self.split_pane_active(tui) {
+            tui.clear_pending_history_lines();
+            tui.frame_requester().schedule_frame();
+            return Ok(());
+        }
         let width = self.chat_widget.history_wrap_width(terminal_width.0);
         let reflowed_lines = if self.transcript_cells.is_empty() {
             self.reset_history_emission_state();

@@ -1098,6 +1098,7 @@ fn config_toml_deserializes_model_availability_nux() {
             vim_mode_default: false,
             raw_output_mode: false,
             alternate_screen: AltScreenMode::default(),
+            layout: TuiLayout::default(),
             status_line: None,
             status_line_use_colors: true,
             terminal_title: None,
@@ -1256,6 +1257,24 @@ async fn runtime_config_uses_tui_raw_output_mode() {
     .expect("load config");
 
     assert!(cfg.tui_raw_output_mode);
+}
+
+#[tokio::test]
+async fn runtime_config_uses_tui_split_layout() {
+    let toml = r#"
+        [tui]
+        layout = "split"
+    "#;
+    let cfg_toml: ConfigToml = toml::from_str(toml).expect("deserialize layout=split");
+    let cfg = Config::load_from_base_config_with_overrides(
+        cfg_toml,
+        ConfigOverrides::default(),
+        tempdir().expect("tempdir").abs(),
+    )
+    .await
+    .expect("load config");
+
+    assert_eq!(cfg.tui_layout, TuiLayout::Split);
 }
 
 #[test]
@@ -3986,6 +4005,7 @@ fn tui_config_missing_notifications_field_defaults_to_enabled() {
             vim_mode_default: false,
             raw_output_mode: false,
             alternate_screen: AltScreenMode::Auto,
+            layout: TuiLayout::Single,
             status_line: None,
             status_line_use_colors: true,
             terminal_title: None,

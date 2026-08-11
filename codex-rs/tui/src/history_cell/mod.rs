@@ -148,6 +148,13 @@ pub(crate) enum HistoryRenderMode {
     Raw,
 }
 
+/// Destination stream for a history cell in the split transcript layout.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum HistoryCellStream {
+    Conversation,
+    Activity,
+}
+
 pub(crate) fn raw_lines_from_source(source: &str) -> Vec<Line<'static>> {
     if source.is_empty() {
         return Vec::new();
@@ -193,6 +200,14 @@ pub(crate) trait HistoryCell: std::fmt::Debug + Send + Sync + Any {
 
     /// Returns copy-friendly plain logical lines for raw scrollback mode.
     fn raw_lines(&self) -> Vec<Line<'static>>;
+
+    /// Returns the stream that owns this cell in the split transcript layout.
+    ///
+    /// Operational cells are the safer default because message cells are a small, explicit set;
+    /// newly introduced tool/status cells should not silently leak into the conversation pane.
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Activity
+    }
 
     /// Returns rich visible lines plus terminal hyperlink metadata.
     fn display_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {

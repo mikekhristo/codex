@@ -1,0 +1,16 @@
+---
+source: tui/src/app/split_pane_tests.rs
+expression: "render_fixture(80, 12)"
+---
+ TRANSCRIPT ────────────────────────────────────────────────────────────────────
+  42 tests passed
+
+* I will keep the conversation readable.
+
+Edited tui/src/app.rs
+  + split layout
+
+Running targeted checks...
+
+> Type a message
+  100% context left

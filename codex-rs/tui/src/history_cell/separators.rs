@@ -25,6 +25,10 @@ impl FinalMessageSeparator {
     }
 }
 impl HistoryCell for FinalMessageSeparator {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         let mut label_parts = Vec::new();
         if let Some(elapsed_seconds) = self

@@ -15,7 +15,10 @@ impl App {
             tui.frame_requester().schedule_frame();
         }
         self.transcript_cells.push(cell.clone());
-        if self.initial_history_replay_buffer.as_ref().is_some() {
+        if self.split_pane_active(tui) {
+            tui.clear_pending_history_lines();
+            tui.frame_requester().schedule_frame();
+        } else if self.initial_history_replay_buffer.as_ref().is_some() {
             self.insert_history_cell_lines_with_initial_replay_buffer(
                 tui,
                 cell.as_ref(),
@@ -115,6 +118,10 @@ impl App {
     }
 
     pub(super) fn queue_clear_ui_header(&mut self, tui: &mut tui::Tui) {
+        if self.split_pane_active(tui) {
+            tui.frame_requester().schedule_frame();
+            return;
+        }
         let width = self
             .chat_widget
             .history_wrap_width(tui.terminal.last_known_screen_size.width);

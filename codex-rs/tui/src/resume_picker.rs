@@ -561,6 +561,13 @@ async fn run_session_picker_with_loader(
                             return Ok(sel);
                         }
                     }
+                    TuiEvent::Mouse(mouse_event) => {
+                        if let Some(key) = crate::tui::mouse_scroll_key(mouse_event)
+                            && let Some(sel) = state.handle_key(key).await?
+                        {
+                            return Ok(sel);
+                        }
+                    }
                     TuiEvent::Paste(pasted) => {
                         state.handle_paste(pasted);
                     }

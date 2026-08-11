@@ -104,6 +104,11 @@ pub(crate) async fn run_external_agent_config_migration_prompt(
             let _ = tui.screen_size_for_event(&event);
             match event {
                 TuiEvent::Key(key_event) => screen.handle_key(key_event),
+                TuiEvent::Mouse(mouse_event) => {
+                    if let Some(key_event) = crate::tui::mouse_scroll_key(mouse_event) {
+                        screen.handle_key(key_event);
+                    }
+                }
                 TuiEvent::Paste(_) => {}
                 TuiEvent::Draw | TuiEvent::Resume | TuiEvent::Resize(_) => {
                     let _ = tui.draw(u16::MAX, |frame| {

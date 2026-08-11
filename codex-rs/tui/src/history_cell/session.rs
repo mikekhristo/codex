@@ -105,6 +105,10 @@ impl HistoryCell for TooltipHistoryCell {
 pub struct SessionInfoCell(CompositeHistoryCell);
 
 impl HistoryCell for SessionInfoCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         self.0.display_lines(width)
     }
@@ -310,6 +314,10 @@ impl SessionHeaderHistoryCell {
 }
 
 impl HistoryCell for SessionHeaderHistoryCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         let Some(inner_width) = card_inner_width(width, SESSION_HEADER_MAX_INNER_WIDTH) else {
             return Vec::new();

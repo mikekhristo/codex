@@ -224,6 +224,7 @@ mod resize_reflow;
 mod safety_buffering;
 mod session_lifecycle;
 mod side;
+mod split_pane;
 mod startup_prompts;
 mod thread_events;
 mod thread_goal_actions;
@@ -530,6 +531,7 @@ pub(crate) struct App {
     pub(crate) file_search: FileSearchManager,
 
     pub(crate) transcript_cells: Vec<Arc<dyn HistoryCell>>,
+    split_pane_scroll: split_pane::SplitPaneScrollState,
 
     // Pager overlay state (Transcript or Static like Diff)
     pub(crate) overlay: Option<Overlay>,
@@ -1055,6 +1057,7 @@ See the Codex keymap documentation for supported actions and examples."
             keymap: runtime_keymap,
             key_chord_matcher: KeyChordMatcher::default(),
             transcript_cells: Vec::new(),
+            split_pane_scroll: split_pane::SplitPaneScrollState::default(),
             overlay: None,
             deferred_history_lines: Vec::new(),
             has_emitted_history_lines: false,
@@ -1094,6 +1097,7 @@ See the Codex keymap documentation for supported actions and examples."
         if let Some(entry) = startup_hooks_browser {
             app.chat_widget.open_hooks_browser(entry);
         }
+        app.ensure_split_pane_screen(tui)?;
         app.update_visible_history_rows(tui.terminal.last_known_screen_size);
         let initial_session_started_at = Instant::now();
         if let Some(started) = initial_started_thread {
@@ -1299,10 +1303,32 @@ See the Codex keymap documentation for supported actions and examples."
         event: TuiEvent,
     ) -> Result<AppRunControl> {
         let screen_size = tui.screen_size_for_event(&event)?;
-        if !matches!(&event, TuiEvent::Key(_) | TuiEvent::Paste(_)) {
+        if !matches!(
+            &event,
+            TuiEvent::Key(_) | TuiEvent::Mouse(_) | TuiEvent::Paste(_)
+        ) {
             self.expire_pending_key_chord();
             self.handle_draw_pre_render(tui, screen_size)?;
         }
+
+        let event = if let TuiEvent::Mouse(mouse_event) = event {
+            if self.split_pane_active(tui)
+                && self.overlay.is_none()
+                && self.chat_widget.no_modal_or_popup_active()
+            {
+                self.handle_split_pane_mouse(tui, screen_size.width, mouse_event);
+                return Ok(AppRunControl::Continue);
+            }
+            if self.overlay.is_none() && self.chat_widget.no_modal_or_popup_active() {
+                return Ok(AppRunControl::Continue);
+            }
+            let Some(key_event) = tui::mouse_scroll_key(mouse_event) else {
+                return Ok(AppRunControl::Continue);
+            };
+            TuiEvent::Key(key_event)
+        } else {
+            event
+        };
 
         let event = if let TuiEvent::Key(key_event) = event {
             let Some(key_event) = self.route_key_chord_event(tui, key_event) else {
@@ -1330,6 +1356,7 @@ See the Codex keymap documentation for supported actions and examples."
                     let pasted = pasted.replace("\r", "\n");
                     self.chat_widget.handle_paste(pasted);
                 }
+                TuiEvent::Mouse(_) => {}
                 TuiEvent::Draw | TuiEvent::Resume | TuiEvent::Resize(_) => {
                     if self.backtrack_render_pending {
                         self.rebuild_transcript_after_backtrack(tui, screen_size.into())?;
@@ -1391,6 +1418,9 @@ See the Codex keymap documentation for supported actions and examples."
     }
 
     fn render_chat_widget_frame(&mut self, tui: &mut tui::Tui, screen_size: Size) -> Result<Rect> {
+        if self.split_pane_active(tui) {
+            return self.render_split_pane_frame(tui, screen_size);
+        }
         self.with_chat_widget_frame(screen_size.width, |desired_height, chat_widget| {
             let mut rendered_area = Rect::default();
             tui.draw_with_resize_reflow(desired_height, screen_size, |frame| {

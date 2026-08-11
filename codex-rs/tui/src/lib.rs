@@ -1781,6 +1781,9 @@ async fn run_ratatui_app(
     )
     .await;
 
+    if let Err(err) = tui.leave_alt_screen() {
+        tracing::warn!(error = %err, "failed to leave alternate screen after TUI exit");
+    }
     terminal_restore_guard.restore_silently();
     // Mark the end of the recorded session.
     session_log::log_session_end();

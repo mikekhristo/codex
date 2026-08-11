@@ -60,6 +60,47 @@ impl ChatWidget {
     pub(crate) fn note_rendered_width(&self, width: u16) {
         self.last_rendered_width.set(Some(width as usize));
     }
+
+    pub(crate) fn last_rendered_width(&self) -> Option<u16> {
+        self.last_rendered_width
+            .get()
+            .and_then(|width| u16::try_from(width).ok())
+    }
+
+    /// Returns transient history cells in the same order as the traditional shared viewport.
+    pub(crate) fn live_history_cells(&self) -> Vec<&dyn HistoryCell> {
+        let mut cells = Vec::new();
+        if let Some(cell) = self.transcript.active_cell.as_deref() {
+            cells.push(cell);
+        }
+        if let Some(cell) = self
+            .active_hook_cell
+            .as_ref()
+            .filter(|cell| cell.should_render())
+        {
+            cells.push(cell);
+        }
+        if let Some(cell) = self.pending_token_activity_output() {
+            cells.push(cell);
+        }
+        if let Some(cell) = self.pending_rate_limit_reset_hint() {
+            cells.push(cell);
+        }
+        cells
+    }
+
+    /// Returns the composer/status surface without the active transcript cell.
+    pub(crate) fn composer_renderable(&self, right_reserve: u16) -> RenderableItem<'_> {
+        self.bottom_pane
+            .as_renderable_with_composer_right_reserve(right_reserve)
+            .inset(Insets::tlbr(
+                /*top*/ 1, /*left*/ 0, /*bottom*/ 0, /*right*/ 0,
+            ))
+    }
+
+    pub(crate) fn ambient_pet_right_reserve(&self) -> u16 {
+        self.ambient_pet_wrap_reserved_cols()
+    }
 }
 
 struct TranscriptAreaRenderable<'a> {

@@ -11,6 +11,10 @@ pub(crate) struct RequestUserInputResultCell {
 }
 
 impl HistoryCell for RequestUserInputResultCell {
+    fn stream(&self) -> HistoryCellStream {
+        HistoryCellStream::Conversation
+    }
+
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         let width = width.max(1) as usize;
         let total = self.questions.len();
